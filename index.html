@@ -154,7 +154,7 @@
           velocity.normalize();
 
           // モデルの「上方向」が進行方向を向く
-          const upAxis = new THREE.Vector3(0, 0, 1);
+          const upAxis = new THREE.Vector3(0, 1, 0);
           const q = new THREE.Quaternion().setFromUnitVectors(upAxis, velocity);
 
           el.object3D.quaternion.copy(q);
