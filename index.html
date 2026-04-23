@@ -40,18 +40,15 @@
 
       const width = window.innerWidth;
 
-      // iPhoneくらいで10〜12個、広い画面で少し増える
-      this.count = Math.max(10, Math.min(18, Math.round(width / 110)));
+      // 前回の約2倍
+      this.count = Math.max(20, Math.min(36, Math.round(width / 55)));
 
-      // 横の広がり
-      this.radiusX = 1.4;
-      this.radiusZ = 1.0;
+      this.radiusX = 1.5;
+      this.radiusZ = 1.1;
 
-      // 画面より下から出して、画面より上まで飛ばす
-      this.minY = -3.8;
-      this.maxY = 5.8;
+      this.minY = -4.6;
+      this.maxY = 6.8;
 
-      // 元のモデルに近いスケール感
       this.baseScale = 0.1389;
 
       for (let i = 0; i < this.count; i++) {
@@ -61,7 +58,6 @@
         const state = this.makeBalloonState(true);
 
         balloon.object3D.position.set(state.x, state.y, state.z);
-        balloon.object3D.rotation.set(state.rx, state.ry, state.rz);
         balloon.object3D.scale.set(state.scale, state.scale, state.scale);
 
         this.el.appendChild(balloon);
@@ -75,7 +71,7 @@
 
       const y = randomiseY
         ? this.minY + Math.random() * (this.maxY - this.minY)
-        : this.minY - (0.4 + Math.random() * 1.2);
+        : this.minY - (0.8 + Math.random() * 1.8);
 
       const scale = this.baseScale * (0.88 + Math.random() * 0.28);
 
@@ -87,31 +83,33 @@
         baseX: x,
         baseZ: z,
 
-        // 少しだけ斜めに流れる
-        driftX: (Math.random() - 0.5) * 0.9,
-        driftZ: (Math.random() - 0.5) * 0.6,
+        // 少し斜めに流れる
+        driftX: (Math.random() - 0.5) * 1.1,
+        driftZ: (Math.random() - 0.5) * 0.8,
 
-        // 上昇速度
-        speedY: 0.75 + Math.random() * 0.45,
+        // 前回より速く
+        speedY: 1.15 + Math.random() * 0.55,
 
         // ふわっとした横揺れ
-        swayAmpX: 0.04 + Math.random() * 0.06,
-        swayAmpZ: 0.02 + Math.random() * 0.05,
+        swayAmpX: 0.03 + Math.random() * 0.05,
+        swayAmpZ: 0.02 + Math.random() * 0.04,
         swayFreqX: 0.8 + Math.random() * 1.0,
         swayFreqZ: 0.7 + Math.random() * 0.9,
         swayPhaseX: Math.random() * Math.PI * 2,
         swayPhaseZ: Math.random() * Math.PI * 2,
 
-        // 軽い回転
-        rx: (Math.random() - 0.5) * 0.18,
-        ry: Math.random() * Math.PI * 2,
-        rz: (Math.random() - 0.5) * 0.18,
+        // 軽いスピン
+        spinSpeed: (Math.random() - 0.5) * 0.7,
 
-        rotSpeedX: (Math.random() - 0.5) * 0.18,
-        rotSpeedY: (Math.random() - 0.5) * 0.55,
-        rotSpeedZ: (Math.random() - 0.5) * 0.18,
+        scale,
 
-        scale
+        // 前フレーム位置
+        prevX: x,
+        prevY: y,
+        prevZ: z,
+
+        // 初期ヨー
+        yawOffset: Math.random() * Math.PI * 2
       };
     },
 
@@ -123,6 +121,10 @@
         const balloon = this.balloons[i];
         const el = balloon.el;
         const s = balloon.state;
+
+        s.prevX = el.object3D.position.x;
+        s.prevY = el.object3D.position.y;
+        s.prevZ = el.object3D.position.z;
 
         s.y += s.speedY * dt;
 
@@ -141,17 +143,33 @@
 
         el.object3D.position.set(px, s.y, pz);
 
-        el.object3D.rotation.x += s.rotSpeedX * dt;
-        el.object3D.rotation.y += s.rotSpeedY * dt;
-        el.object3D.rotation.z += s.rotSpeedZ * dt;
+        // 移動方向ベクトル
+        const vx = px - s.prevX;
+        const vy = s.y - s.prevY;
+        const vz = pz - s.prevZ;
 
-        // 上まで完全に抜けたら、かなり下から再発生
+        const velocity = new THREE.Vector3(vx, vy, vz);
+
+        if (velocity.lengthSq() > 0.000001) {
+          velocity.normalize();
+
+          // モデルの「上方向」が進行方向を向く
+          const upAxis = new THREE.Vector3(0, 0, 1);
+          const q = new THREE.Quaternion().setFromUnitVectors(upAxis, velocity);
+
+          el.object3D.quaternion.copy(q);
+
+          // 進行方向を向いたまま、少しだけ自転
+          const spinQ = new THREE.Quaternion();
+          spinQ.setFromAxisAngle(velocity, s.spinSpeed * t + s.yawOffset);
+          el.object3D.quaternion.multiply(spinQ);
+        }
+
         if (s.y > this.maxY) {
           const newState = this.makeBalloonState(false);
           balloon.state = newState;
 
           el.object3D.position.set(newState.x, newState.y, newState.z);
-          el.object3D.rotation.set(newState.rx, newState.ry, newState.rz);
           el.object3D.scale.set(newState.scale, newState.scale, newState.scale);
         }
       }
