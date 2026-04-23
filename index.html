@@ -20,56 +20,142 @@
       <a-asset-item id="animated-asset" src="assets/asset.glb"></a-asset-item>
     </a-assets>
 
-    <a-marker
-      id="markerA"
-      type="pattern"
-      url="assets/marker.patt"
-    >
-      <a-entity id="balloonContainer"></a-entity>
-    </a-marker>
+<a-marker
+  id="markerA"
+  type="pattern"
+  url="assets/marker.patt"
+>
+  <a-entity id="balloon-system" balloon-spawner></a-entity>
+</a-marker>
 
-    <a-entity light="type: ambient; intensity: 1.2"></a-entity>
-    <a-entity light="type: directional; intensity: 0.8; position: 1 2 1"></a-entity>
-
-    <a-entity camera></a-entity>
+<a-entity light="type: ambient; intensity: 1.2"></a-entity>
+<a-entity light="type: directional; intensity: 0.8; position: 1 2 1"></a-entity>
   </a-scene>
 
-  <script>
-    window.addEventListener('load', () => {
-      const container = document.querySelector('#balloonContainer');
+<script>
+  AFRAME.registerComponent('balloon-spawner', {
+    init: function () {
+      this.balloons = [];
+      this.modelId = '#animated-asset';
 
-      for (let i = 0; i < 10; i++) {
+      const width = window.innerWidth;
+
+      // iPhoneくらいで10〜12個、広い画面で少し増える
+      this.count = Math.max(10, Math.min(18, Math.round(width / 110)));
+
+      // 横の広がり
+      this.radiusX = 1.4;
+      this.radiusZ = 1.0;
+
+      // 画面より下から出して、画面より上まで飛ばす
+      this.minY = -3.8;
+      this.maxY = 5.8;
+
+      // 元のモデルに近いスケール感
+      this.baseScale = 0.1389;
+
+      for (let i = 0; i < this.count; i++) {
         const balloon = document.createElement('a-entity');
+        balloon.setAttribute('gltf-model', this.modelId);
 
-        const x = (Math.random() - 0.5) * 1.5;
-        const y = -1 - Math.random() * 1.5;
-        const z = (Math.random() - 0.5) * 1.5;
-        const scale = 0.12 + Math.random() * 0.05;
-        const dur = 4000 + Math.random() * 3000;
+        const state = this.makeBalloonState(true);
 
-        balloon.setAttribute('gltf-model', '#animated-asset');
-        balloon.setAttribute('position', `${x} ${y} ${z}`);
-        balloon.setAttribute('scale', `${scale} ${scale} ${scale}`);
-        balloon.setAttribute(
-          'animation',
-          `property: position;
-           from: ${x} ${y} ${z};
-           to: ${x + (Math.random() - 0.5) * 0.5} 2.5 ${z + (Math.random() - 0.5) * 0.5};
-           dur: ${dur};
-           loop: true;
-           easing: linear`
-        );
-        balloon.setAttribute(
-          'animation__rotate',
-          `property: rotation;
-           to: ${Math.random() * 40 - 20} ${360 + Math.random() * 180} ${Math.random() * 40 - 20};
-           dur: ${3000 + Math.random() * 3000};
-           loop: true;
-           easing: linear`
-        );
+        balloon.object3D.position.set(state.x, state.y, state.z);
+        balloon.object3D.rotation.set(state.rx, state.ry, state.rz);
+        balloon.object3D.scale.set(state.scale, state.scale, state.scale);
 
-        container.appendChild(balloon);
+        this.el.appendChild(balloon);
+        this.balloons.push({ el: balloon, state });
       }
-    });
-  </script>
+    },
+
+    makeBalloonState: function (randomiseY) {
+      const x = (Math.random() - 0.5) * this.radiusX * 2;
+      const z = (Math.random() - 0.5) * this.radiusZ * 2;
+
+      const y = randomiseY
+        ? this.minY + Math.random() * (this.maxY - this.minY)
+        : this.minY - (0.4 + Math.random() * 1.2);
+
+      const scale = this.baseScale * (0.88 + Math.random() * 0.28);
+
+      return {
+        x,
+        y,
+        z,
+
+        baseX: x,
+        baseZ: z,
+
+        // 少しだけ斜めに流れる
+        driftX: (Math.random() - 0.5) * 0.9,
+        driftZ: (Math.random() - 0.5) * 0.6,
+
+        // 上昇速度
+        speedY: 0.75 + Math.random() * 0.45,
+
+        // ふわっとした横揺れ
+        swayAmpX: 0.04 + Math.random() * 0.06,
+        swayAmpZ: 0.02 + Math.random() * 0.05,
+        swayFreqX: 0.8 + Math.random() * 1.0,
+        swayFreqZ: 0.7 + Math.random() * 0.9,
+        swayPhaseX: Math.random() * Math.PI * 2,
+        swayPhaseZ: Math.random() * Math.PI * 2,
+
+        // 軽い回転
+        rx: (Math.random() - 0.5) * 0.18,
+        ry: Math.random() * Math.PI * 2,
+        rz: (Math.random() - 0.5) * 0.18,
+
+        rotSpeedX: (Math.random() - 0.5) * 0.18,
+        rotSpeedY: (Math.random() - 0.5) * 0.55,
+        rotSpeedZ: (Math.random() - 0.5) * 0.18,
+
+        scale
+      };
+    },
+
+    tick: function (time, timeDelta) {
+      const dt = timeDelta / 1000;
+      const t = time / 1000;
+
+      for (let i = 0; i < this.balloons.length; i++) {
+        const balloon = this.balloons[i];
+        const el = balloon.el;
+        const s = balloon.state;
+
+        s.y += s.speedY * dt;
+
+        const progress = (s.y - this.minY) / (this.maxY - this.minY);
+        const clamped = Math.max(0, Math.min(progress, 1));
+
+        const px =
+          s.baseX +
+          s.driftX * clamped +
+          Math.sin(t * s.swayFreqX + s.swayPhaseX) * s.swayAmpX;
+
+        const pz =
+          s.baseZ +
+          s.driftZ * clamped +
+          Math.cos(t * s.swayFreqZ + s.swayPhaseZ) * s.swayAmpZ;
+
+        el.object3D.position.set(px, s.y, pz);
+
+        el.object3D.rotation.x += s.rotSpeedX * dt;
+        el.object3D.rotation.y += s.rotSpeedY * dt;
+        el.object3D.rotation.z += s.rotSpeedZ * dt;
+
+        // 上まで完全に抜けたら、かなり下から再発生
+        if (s.y > this.maxY) {
+          const newState = this.makeBalloonState(false);
+          balloon.state = newState;
+
+          el.object3D.position.set(newState.x, newState.y, newState.z);
+          el.object3D.rotation.set(newState.rx, newState.ry, newState.rz);
+          el.object3D.scale.set(newState.scale, newState.scale, newState.scale);
+        }
+      }
+    }
+  });
+</script>
 </body>
