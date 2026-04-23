@@ -25,13 +25,51 @@
       type="pattern"
       url="assets/marker.patt"
     >
-      <a-entity
-        gltf-model="#animated-asset"
-        position="0 0 0"
-        scale="0.14 0.14 0.14"
-      ></a-entity>
+      <a-entity id="balloonContainer"></a-entity>
     </a-marker>
+
+    <a-entity light="type: ambient; intensity: 1.2"></a-entity>
+    <a-entity light="type: directional; intensity: 0.8; position: 1 2 1"></a-entity>
 
     <a-entity camera></a-entity>
   </a-scene>
+
+  <script>
+    window.addEventListener('load', () => {
+      const container = document.querySelector('#balloonContainer');
+
+      for (let i = 0; i < 10; i++) {
+        const balloon = document.createElement('a-entity');
+
+        const x = (Math.random() - 0.5) * 1.5;
+        const y = -1 - Math.random() * 1.5;
+        const z = (Math.random() - 0.5) * 1.5;
+        const scale = 0.12 + Math.random() * 0.05;
+        const dur = 4000 + Math.random() * 3000;
+
+        balloon.setAttribute('gltf-model', '#animated-asset');
+        balloon.setAttribute('position', `${x} ${y} ${z}`);
+        balloon.setAttribute('scale', `${scale} ${scale} ${scale}`);
+        balloon.setAttribute(
+          'animation',
+          `property: position;
+           from: ${x} ${y} ${z};
+           to: ${x + (Math.random() - 0.5) * 0.5} 2.5 ${z + (Math.random() - 0.5) * 0.5};
+           dur: ${dur};
+           loop: true;
+           easing: linear`
+        );
+        balloon.setAttribute(
+          'animation__rotate',
+          `property: rotation;
+           to: ${Math.random() * 40 - 20} ${360 + Math.random() * 180} ${Math.random() * 40 - 20};
+           dur: ${3000 + Math.random() * 3000};
+           loop: true;
+           easing: linear`
+        );
+
+        container.appendChild(balloon);
+      }
+    });
+  </script>
 </body>
